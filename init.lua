@@ -83,6 +83,25 @@ I hope you enjoy your Neovim journey,
 
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
+-- Custom variables
+-- Detect if running through SSH
+local isSSH = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil
+
+-- Detect if using VS Code with VSCode Neovim
+local isCode = vim.g.vscode
+
+-- Check if external variable NVIM_MODE is minimal
+local isMinimal = vim.env.NVIM_MODE == 'minimal'
+
+-- Adds a command for quickly entering the Neovim configuration file
+vim.api.nvim_create_user_command('Config', function()
+  vim.cmd('e ' .. vim.env.MYVIMRC)
+end, {})
+
+-- Adds a command to quickly reload the configuration file
+vim.api.nvim_create_user_command('Reload', function()
+  vim.cmd('luafile ' .. vim.env.MYVIMRC)
+end, {})
 
 -- Set <space> as the leader key
 -- See `:help mapleader`
@@ -98,25 +117,20 @@ vim.g.have_nerd_font = true
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
 
--- Make line numbers default
+-- Make line numbers default and relative
 vim.o.number = true
--- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
 vim.o.relativenumber = true
+
+-- Configure tab behavior
+vim.o.tabstop = 4 -- Number of spaces a <Tab> counts for
+vim.o.shiftwidth = 4 -- Number of spaces for each code indentation level
+-- vim.o.expandtab = true   -- Use spaces instead of tabs
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
 
 -- Don't show the mode, since it's already in the status line
 vim.o.showmode = false
-
--- Sync clipboard between OS and Neovim.
---  Schedule the setting after `UiEnter` because it can increase startup-time.
---  Remove this option if you want your OS clipboard to remain independent.
---  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
-end)
 
 -- Enable break indent
 vim.o.breakindent = true
@@ -221,9 +235,6 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
-
--- [[ Install `lazy.nvim` plugin manager ]]
---    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
   local lazyrepo = 'https://github.com/folke/lazy.nvim.git'
@@ -249,8 +260,25 @@ rtp:prepend(lazypath)
 --
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
+
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-  'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
+  {
+    'NMAC427/guess-indent.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isMinimal
+    end,
+
+    config = function()
+      require('guess-indent').setup {
+        auto_cmd = true, -- Detect tabstop and shiftwidth automatically
+        override_editorconfig = false, -- Prevent overrides from .editorconfig files
+        -- filetype_exclude = {},
+        -- buftype_exclude = {},
+      }
+    end,
+  },
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -276,6 +304,12 @@ require('lazy').setup({
   -- See `:help gitsigns` to understand what the configuration keys do
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isMinimal and not isCode
+    end,
+
     opts = {
       signs = {
         add = { text = '+' },
@@ -283,6 +317,89 @@ require('lazy').setup({
         delete = { text = '_' },
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
+      },
+    },
+  },
+
+  -- Adds the surround module to support surrounding text with characters
+  {
+    'kylechui/nvim-surround',
+    version = '^3.0.0', -- Use for stability; omit to use `main` branch for the latest features
+    event = 'VeryLazy',
+    config = function()
+      require('nvim-surround').setup {
+        -- Configuration here, or leave empty to use defaults
+      }
+    end,
+  },
+
+  -- Custom keymaps to yank to clipboard using osc52
+  {
+    'ojroques/nvim-osc52',
+
+    -- Set enable condition
+    cond = function()
+      return isSSH
+    end,
+
+    config = function()
+      require('osc52').setup {}
+    end,
+
+    vim.keymap.set('v', '<leader>c', function()
+      require('osc52').copy_visual()
+    end, { desc = '[C]opy selection to clipboard' }),
+
+    vim.keymap.set('n', '<leader>c', function()
+      require('osc52').copy_register '"'
+    end, { desc = '[C]opy to clipboard' }),
+  },
+
+  {
+    'folke/flash.nvim',
+    event = 'VeryLazy',
+    ---@type Flash.Config
+    opts = {},
+    keys = {
+      {
+        's',
+        mode = { 'n', 'x', 'o' },
+        function()
+          require('flash').jump()
+        end,
+        desc = '[S]earch with Flash',
+      },
+      {
+        'S',
+        mode = { 'n', 'x', 'o' },
+        function()
+          require('flash').treesitter()
+        end,
+        desc = '[S]earch with Flash Treesitter',
+      },
+      {
+        'r',
+        mode = 'o',
+        function()
+          require('flash').remote()
+        end,
+        desc = '[R]emote Flash',
+      },
+      {
+        'R',
+        mode = { 'o', 'x' },
+        function()
+          require('flash').treesitter_search()
+        end,
+        desc = '[R]emote Treesitter Search',
+      },
+      {
+        '<c-s>',
+        mode = { 'c' },
+        function()
+          require('flash').toggle()
+        end,
+        desc = 'Toggle Flash Search',
       },
     },
   },
@@ -303,11 +420,17 @@ require('lazy').setup({
 
   { -- Useful plugin to show you pending keybinds.
     'folke/which-key.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     event = 'VimEnter', -- Sets the loading event to 'VimEnter'
     opts = {
       -- delay between pressing a key and opening which-key (milliseconds)
       -- this setting is independent of vim.o.timeoutlen
-      delay = 0,
+      delay = 200,
       icons = {
         -- set icon mappings to true if you have a Nerd Font
         mappings = vim.g.have_nerd_font,
@@ -363,6 +486,12 @@ require('lazy').setup({
 
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     event = 'VimEnter',
     dependencies = {
       'nvim-lua/plenary.nvim',
@@ -470,6 +599,12 @@ require('lazy').setup({
     -- `lazydev` configures Lua LSP for your Neovim config, runtime and plugins
     -- used for completion, annotations and signatures of Neovim apis
     'folke/lazydev.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     ft = 'lua',
     opts = {
       library = {
@@ -481,6 +616,12 @@ require('lazy').setup({
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       -- Mason must be loaded before its dependents so we need to set it up here.
@@ -741,6 +882,12 @@ require('lazy').setup({
 
   { -- Autoformat
     'stevearc/conform.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     event = { 'BufWritePre' },
     cmd = { 'ConformInfo' },
     keys = {
@@ -782,6 +929,12 @@ require('lazy').setup({
 
   { -- Autocompletion
     'saghen/blink.cmp',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     event = 'VimEnter',
     version = '1.*',
     dependencies = {
@@ -885,6 +1038,12 @@ require('lazy').setup({
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
     'folke/tokyonight.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
       ---@diagnostic disable-next-line: missing-fields
@@ -902,10 +1061,27 @@ require('lazy').setup({
   },
 
   -- Highlight todo, notes, etc in comments
-  { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+  {
+    'folke/todo-comments.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
+    event = 'VimEnter',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    opts = { signs = false },
+  },
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
+
+    -- Set enable condition
+    cond = function()
+      return not isCode
+    end,
+
     config = function()
       -- Better Around/Inside textobjects
       --
@@ -920,7 +1096,7 @@ require('lazy').setup({
       -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
       -- - sd'   - [S]urround [D]elete [']quotes
       -- - sr)'  - [S]urround [R]eplace [)] [']
-      require('mini.surround').setup()
+      -- require('mini.surround').setup()
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
@@ -943,6 +1119,12 @@ require('lazy').setup({
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+
+    -- Set enable condition
+    cond = function()
+      return not isMinimal
+    end,
+
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
@@ -979,7 +1161,16 @@ require('lazy').setup({
   -- require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
+  {
+    name = 'kickstart-autopairs',
+
+    -- Set enable condition
+    cond = function()
+      return not isMinimal
+    end,
+
+    import = 'kickstart.plugins.autopairs',
+  },
   -- require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
