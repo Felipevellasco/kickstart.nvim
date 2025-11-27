@@ -93,6 +93,21 @@ local isCode = vim.g.vscode
 -- Check if external variable NVIM_MODE is minimal
 local isMinimal = vim.env.NVIM_MODE == 'minimal'
 
+-- Use Git Bash for the Treesitter parser compilation if on Windows
+if vim.fn.has 'win32' == 1 then
+  local bash_path = vim.fn.exepath 'bash'
+  if bash_path == nil or bash_path == '' then
+    -- fallback to default Git Bash path
+    bash_path = 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'
+  end
+  if vim.fn.filereadable(bash_path) == 1 then
+    vim.o.shell = bash_path
+  else
+    vim.notify('Git Bash not found — Treesitter may fail to compile parsers', vim.log.levels.WARN)
+    vim.notify("You may try to add 'bash.exe' to your system's PATH or install Git to the default directory.", vim.log.levels.INFO)
+  end
+end
+
 -- Adds a command for quickly entering the Neovim configuration file
 vim.api.nvim_create_user_command('Config', function()
   vim.cmd('e ' .. vim.env.MYVIMRC)
@@ -337,22 +352,35 @@ require('lazy').setup({
   {
     'ojroques/nvim-osc52',
 
-    -- Set enable condition
-    cond = function()
-      return isSSH
-    end,
-
     config = function()
-      require('osc52').setup {}
+      require('osc52').setup()
+
+      local has_clipboard = vim.fn.has 'clipboard' == 1
+      local has_osc52 = pcall(require, 'osc52')
+
+      local function copy_visual()
+        if has_clipboard then
+          vim.cmd 'normal! "+y'
+        elseif has_osc52 then
+          require('osc52').copy_visual()
+        else
+          vim.notify('No clipboard or OSC52 support found', vim.log.levels.ERROR)
+        end
+      end
+
+      local function copy_normal()
+        if has_clipboard then
+          vim.cmd 'normal! "+yy'
+        elseif has_osc52 then
+          require('osc52').copy_register '"'
+        else
+          vim.notify('No clipboard or OSC52 support found', vim.log.levels.ERROR)
+        end
+      end
+
+      vim.keymap.set('v', '<leader>c', copy_visual, { desc = '[C]opy selection to clipboard' })
+      vim.keymap.set('n', '<leader>c', copy_normal, { desc = '[C]opy line to clipboard' })
     end,
-
-    vim.keymap.set('v', '<leader>c', function()
-      require('osc52').copy_visual()
-    end, { desc = '[C]opy selection to clipboard' }),
-
-    vim.keymap.set('n', '<leader>c', function()
-      require('osc52').copy_register '"'
-    end, { desc = '[C]opy to clipboard' }),
   },
 
   {
