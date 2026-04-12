@@ -22,4 +22,11 @@ else
   M.clipboard = vim.fn.executable 'xclip' == 1 or vim.fn.executable 'xsel' == 1 or vim.fn.executable 'wl-copy' == 1 or vim.fn.executable 'pbcopy' == 1 -- macOS
 end
 
+-- Dynamically find obsidian vaults based on a set of specified candidates
+M.obsidianVaults = {
+  { name = 'Pessoal', path = 'D:/Obsidian/Brain' },
+  { name = 'Trabalho', path = 'D:/Obsidian/Trabalho' },
+  { name = 'Pessoal (fallback)', path = 'D:/Documentos/Obsidian/Brain' },
+}
+
 return M

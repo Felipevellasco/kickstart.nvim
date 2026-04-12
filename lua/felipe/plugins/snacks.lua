@@ -106,11 +106,21 @@ return {
 
       bigfile = { enabled = true },
 
-      explorer = { enabled = true },
+      explorer = {
+        enabled = true,
+        replace_netrw = true,
+        trash = true,
+        -- layout = {
+        --   preset = 'sidebar',
+        --   preview = 'false',
+        -- },
+      },
 
       indent = { enabled = true },
 
       input = { enabled = true },
+
+      image = { enabled = true },
 
       -- picker = { enabled = true },
 
